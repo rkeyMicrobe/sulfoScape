@@ -1,0 +1,55 @@
+
+# Decompress file
+bzip2 -dk MARMICRODB.faa.bz2
+
+#----------------------
+# Run Ryan's code, I am not removing euk seqs
+module load R
+Rscript filter_marmicrodb_entries.R MARMICRODB.faa
+
+MARMICRODB_FASTA="MARMICRODB.faa"
+KEPT_IDS="MARMICRODB_catalog.filtered.genome.txt"
+OUT_FASTA="marmicrodb.filtered.uid.faa"
+MARMICRODB_UID2TAX="marmicrodb.filtered.uid2tax.tab"
+
+module purge
+module load python
+python process_marmicrodb_fasta.py -k ${KEPT_IDS} -f ${MARMICRODB_FASTA}  -o ${OUT_FASTA} -t ${MARMICRODB_UID2TAX}
+#----------------------
+
+# Get stats on numeric artifacts in amino acid seqs
+grep -E "^[0-9]+" marmicrodb.filtered.uid.faa | wc -l
+grep "^>" marmicrodb.filtered.uid.faa | wc -l
+
+grep -E "^[0-9]+" marmicrodb.filtered.uid.faa \
+| sed 's/^ *//' \
+| grep -o "^[0-9]*" \
+| awk '{print length($1)}' \
+| sort | uniq -c
+
+grep -E "^[0-9]+" marmicrodb.filtered.uid.faa | grep -o "^[0-9]*" | head
+grep -E "^[0-9]+" marmicrodb.filtered.uid.faa | grep -o "^[0-9]*" | sort | uniq | head
+grep -E "^[A-Z]" marmicrodb.filtered.uid.faa | wc -l
+
+# Keep header lines, remove leading digits from seq lines
+awk '                           
+/^>/ {print; next}
+{
+    sub(/^[0-9]+/, "")
+    print
+}
+' marmicrodb.filtered.uid.faa > marmicrodb.cleaned.faa
+
+# Confirm numeric prefixes were removed, make sure seq count unchanged
+grep -E "^[0-9]+" marmicrodb.cleaned.faa | wc -l
+grep "^>" marmicrodb.cleaned.faa | wc -l
+
+# Build DIAMOND
+diamond makedb --in marmicrodb.cleaned.faa -d marmicrodb
+
+# Add header required for DIAMOND taxonomy mapping
+(echo -e "accession\taccession.version\ttaxid\tgi"; cat marmicrodb.filtered.uid2tax.tab) > marmicrodb.filtered.uid2tax.header.tab
+
+# Renaming files
+mv marmicrodb.filtered.uid2tax.header.tab marmicDB.uid2tax.tab
+mv marmicrodb.filtered.uid.faa marmicDB.faa

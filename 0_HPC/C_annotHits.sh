@@ -21,9 +21,9 @@ CRUISE="G2NS"
 
 HIT_DIR="${PROJ}/results/hits/${CRUISE}"
 HITS_CSV="${HIT_DIR}/all_${CRUISE}_hmmHits.csv"
-DB_FASTA="${TOOLS}/MARMICRO.faa"
-DB_TAXID="${TOOLS}/MARMICRO.uid2tax.tab"
-DIAMOND="${TOOLS}/diamond_MARMICRO.dmnd"
+DB_FASTA="${TOOLS}/marmicDB.faa"
+DB_TAXID="${TOOLS}/marmicDB.uid2tax.tab"
+DIAMOND="${TOOLS}/marmicrodb.dmnd"
 
 # -----------------------------
 # Modules
@@ -56,28 +56,29 @@ awk -F',' 'NR>1{
 # 3) Run DIAMOND blastp
 echo "Running DIAMOND blastp..."
 
-ANNOT="${HIT_DIR}/${CRUISE}_annot_MM.tsv"
+ANNOT="${HIT_DIR}/${CRUISE}_annot_MM2_n10.tsv"
 diamond blastp \
   -q "${HIT_DIR}/dbQuery_seqs.faa" \
   -d "${DIAMOND}" \
   -o "${ANNOT}" \
-  -p "${SLURM_CPUS_PER_TASK:-8}" --sensitive -k 1 --evalue 1e-10 --query-cover 70 --id 45 \
+  -p "${SLURM_CPUS_PER_TASK:-8}" --sensitive -k 10 --evalue 1e-10 --query-cover 70 --id 45 \
   -f 6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore stitle
 
 # -----------------------------
 # 4) Best hit per contig (lowest evalue, then highest bitscore)
 echo "Select blastp seq with the lowest eval"
 
-BEST_TSV="${HIT_DIR}/${CRUISE}_topHit_MM.tsv"
-RAW_TSV="${HIT_DIR}/${CRUISE}_annot_MM.tsv"
+BEST_TSV="${HIT_DIR}/${CRUISE}_topHit_MM2_n10.tsv"
+RAW_TSV="${HIT_DIR}/${CRUISE}_annot_MM2_n10.tsv"
 
-sort -k1,1 -k11,11g -k12,12r "${RAW_TSV}" | awk '!seen[$1]++' > "${BEST_TSV}"
+#sort -k1,1 -k11,11g -k12,12r "${RAW_TSV}" | awk '!seen[$1]++' > "${BEST_TSV}"
+cp "${RAW_TSV}" "${BEST_TSV}"
 
 # -----------------------------
 # 5) Build Taxid map
 echo "Building UID → taxid map from decompressed DB.tab file"
 
-MAP="${TOOLS}/uid2tax_MM.map"
+MAP="${TOOLS}/uid2tax_MM2.map"
 awk 'FNR>1 {print $2 "\t" $3}' "${DB_TAXID}" > "${MAP}"
 
 # -----------------------------
@@ -90,19 +91,19 @@ awk 'BEGIN{OFS="\t"}
        qseqid=$1; sseqid=$2; evalue=$11; stitle=$13;
        taxid=(sseqid in tax ? tax[sseqid] : "NA");
        print qseqid, sseqid, evalue, stitle, taxid
-     }' "${MAP}" "${BEST_TSV}" > "${HIT_DIR}/${CRUISE}_topHit_wTax_MM.tsv"
+     }' "${MAP}" "${BEST_TSV}" > "${HIT_DIR}/${CRUISE}_topHit_wTax_MM2_n10.tsv"
 
 {
   echo "qseqid,ref_uid,evalue,stitle,taxid"
-  awk 'BEGIN{OFS=","} {gsub(/\t/,","); print}' "${HIT_DIR}/${CRUISE}_topHit_wTax_MM.tsv"
-} > "${HIT_DIR}/${CRUISE}_topHit_wTax_MM.csv"
+  awk 'BEGIN{OFS=","} {gsub(/\t/,","); print}' "${HIT_DIR}/${CRUISE}_topHit_wTax_MM2_n10.tsv"
+} > "${HIT_DIR}/${CRUISE}_topHit_wTax_MM2_n10.csv"
 
 # -----------------------------
 # 7) Clean
 
-rm "${HIT_DIR}/${CRUISE}_topHit_wTax_MM.tsv"
-rm "${HIT_DIR}/${CRUISE}_topHit_MM.tsv"
-rm "${HIT_DIR}/${CRUISE}_annot_MM.tsv"
+rm "${HIT_DIR}/${CRUISE}_topHit_wTax_MM2_n10.tsv"
+rm "${HIT_DIR}/${CRUISE}_topHit_MM2_n10.tsv"
+rm "${HIT_DIR}/${CRUISE}_annot_MM2_n10.tsv"
 rm "${HIT_DIR}/dbQuery_seqs.faa"
 
 # -----------------------------
